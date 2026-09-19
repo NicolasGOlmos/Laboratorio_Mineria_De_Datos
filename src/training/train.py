@@ -167,9 +167,8 @@ def entrenar_y_comparar_modelos(train_path: str, test_path: str, seed: int = SEM
 
             mlflow.sklearn.log_model(
                 pipeline,
-                name="model",
+                artifact_path="model",
                 input_example=X_train.head(2),
-                serialization_format="cloudpickle",
             )
 
             reporte_de_metricas(config["run_name"], metricas)

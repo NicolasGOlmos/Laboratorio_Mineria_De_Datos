@@ -1,14 +1,26 @@
-# Versiones validadas con el pipeline completo (split -> train -> MLflow -> registry)
-pandas==3.0.2
-numpy==2.4.4
-scikit-learn==1.8.0
-mlflow==3.16.0
-dvc==3.67.1
+# Version de mlflow fijada: el servidor de MLflow de DagsHub todavia no
+# soporta bien el mecanismo nuevo de "Logged Models" que trae mlflow 3.x,
+# asi que nos quedamos con la 2.x para que el registro del modelo funcione.
+mlflow==2.16.2
+ 
+# pandas y numpy quedan atados a versiones <3 y <2.1 porque son las que
+# pide mlflow 2.16.2 como maximo. Usar versiones mas nuevas rompe la
+# instalacion con un error de dependencias en conflicto.
+pandas>=2.2,<3
+numpy>=1.26,<2.1
+ 
+scikit-learn==1.5.2
+dvc==3.55.2
 pytest==9.1.1
 joblib==1.5.3
-
+ 
 # Solo para el notebook de EDA (no se usan en el codigo de produccion)
-matplotlib==3.10.8
-nbformat==5.11.1
-nbclient==0.11.0
-jupyter==1.1.1
+matplotlib>=3.9
+nbformat>=5.10
+nbclient>=0.10
+jupyter>=1.0
+ 
+# OJO con la version de Python: mlflow 2.16.2 depende de pyarrow, que no
+# tiene binarios precompilados para Python 3.14 (demasiado nueva). Usar
+# Python 3.11, 3.12 o 3.13 para que la instalacion no falle.
+ 
