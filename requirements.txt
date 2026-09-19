@@ -1,0 +1,14 @@
+# Versiones validadas con el pipeline completo (split -> train -> MLflow -> registry)
+pandas==3.0.2
+numpy==2.4.4
+scikit-learn==1.8.0
+mlflow==3.16.0
+dvc==3.67.1
+pytest==9.1.1
+joblib==1.5.3
+
+# Solo para el notebook de EDA (no se usan en el codigo de produccion)
+matplotlib==3.10.8
+nbformat==5.11.1
+nbclient==0.11.0
+jupyter==1.1.1

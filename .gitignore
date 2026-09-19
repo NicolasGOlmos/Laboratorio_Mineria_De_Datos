@@ -1,0 +1,33 @@
+# Datos (van versionados con DVC, no directo en Git)
+/data/raw/*.csv
+/data/processed/*.csv
+!/data/processed/.gitkeep
+
+# Artefactos de modelos y de MLflow corrido en local
+/mlruns/
+/mlflow.db
+/models/*.csv
+/models/*.pkl
+!/models/.gitkeep
+
+# Entornos virtuales y cachés de Python
+__pycache__/
+*.pyc
+.pytest_cache/
+.ipynb_checkpoints/
+*.egg-info/
+.venv/
+venv/
+
+# Credenciales / secretos (esto NUNCA se sube al repo)
+.env
+*.env
+.dagshub_token
+*.pem
+*.key
+
+# Sistema operativo / editor
+.DS_Store
+.vscode/*
+!.vscode/settings.json
+.idea/
