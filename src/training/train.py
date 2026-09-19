@@ -24,8 +24,8 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import Pipeline
 
 from src.data.load_data import separar_features_y_target, TARGET_COLUMN
-from src.evaluation.evaluate import calcular_metricas, mostrar_reporte_de_metricas
-from src.features.preprocessing import armar_pipeline_de_preprocesamiento
+from src.evaluation.evaluate import calcular_metricas, reporte_de_metricas
+from src.features.preprocessing import armar_preprocesamiento
 
 NOMBRE_EXPERIMENTO = "customer-churn-model-selection"
 SEMILLA = 42
@@ -134,7 +134,7 @@ def entrenar_y_comparar_modelos(train_path: str, test_path: str, seed: int = SEM
 
     for config in definir_modelos_a_comparar():
         with mlflow.start_run(run_name=config["run_name"]):
-            preprocesador = armar_pipeline_de_preprocesamiento()
+            preprocesador = armar_preprocesamiento()
             pipeline = Pipeline(
                 steps=[
                     ("preprocessor", preprocesador),
@@ -172,7 +172,7 @@ def entrenar_y_comparar_modelos(train_path: str, test_path: str, seed: int = SEM
                 serialization_format="cloudpickle",
             )
 
-            mostrar_reporte_de_metricas(config["run_name"], metricas)
+            reporte_de_metricas(config["run_name"], metricas)
 
             run_id = mlflow.active_run().info.run_id
             resultados.append(
