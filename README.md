@@ -95,6 +95,16 @@ da exactamente el mismo resultado — esto está comprobado en
 
 ### 4. Entrenar y comparar los modelos
 
+**En PowerShell (Windows):**
+```powershell
+$env:MLFLOW_TRACKING_URI="https://dagshub.com/<usuario>/<repo>.mlflow"
+$env:MLFLOW_TRACKING_USERNAME="<usuario_dagshub>"
+$env:MLFLOW_TRACKING_PASSWORD="<token_dagshub>"
+
+python -m src.training.train
+```
+
+**En Mac/Linux/Git Bash:**
 ```bash
 export MLFLOW_TRACKING_URI="https://dagshub.com/<usuario>/<repo>.mlflow"
 export MLFLOW_TRACKING_USERNAME="<usuario_dagshub>"
@@ -102,6 +112,10 @@ export MLFLOW_TRACKING_PASSWORD="<token_dagshub>"
 
 python -m src.training.train
 ```
+
+Estas variables **no persisten** entre sesiones de terminal — si
+cerrás y abrís VS Code, hay que volver a exportarlas antes de entrenar
+o registrar el modelo.
 
 Esto corre `entrenar_y_comparar_modelos()`, que prueba 6
 configuraciones distintas — no elegidas al azar, sino pensadas para
@@ -160,6 +174,15 @@ como `customer-churn-classifier` en el Model Registry de MLflow, y le
 deja tags (`source_run_id`, `source_experiment_id`) para poder
 reconstruir después exactamente de qué run salió, sin tener que
 adivinar nada.
+**Nota sobre la versión de MLflow**: usamos `mlflow==2.16.2` a
+propósito (fijado en `requirements.txt`), no la 3.x. El servidor de
+MLflow que expone DagsHub todavía no soporta bien el mecanismo nuevo
+de "Logged Models" que trae MLflow 3.x, y el registro del modelo
+falla con `MlflowException: Unable to find a logged model...` si se
+usa esa versión. Por la misma razón, en `train.py` el modelo se
+loguea con `artifact_path="model"` (el esquema clásico), no con el
+parámetro `name="model"` que usa la sintaxis nueva.
+
 
 ### 8. Correr los tests
 
@@ -244,3 +267,25 @@ https://dagshub.com/<usuario>/<repo>.mlflow
   fijate que `pytest.ini` tenga la línea `pythonpath = .` — sin eso,
   corriendo `pytest` directo (no `python -m pytest`) el proyecto no
   queda en el path de búsqueda de Python.
+- **`pip install -r requirements.txt` falla compilando `pyarrow`**:
+  estás en Python 3.14 (demasiado nueva). Usá 3.11, 3.12 o 3.13.
+- **`pip install` falla con un conflicto entre `mlflow` y `numpy`**:
+  puede pasar en Python 3.13 si la versión de `numpy` que se
+  intenta instalar es previa a que numpy soportara esa versión de
+  Python. Con las versiones ya fijadas en este `requirements.txt` no
+  debería pasar, pero si aparece, la solución más simple es recrear el
+  entorno virtual con Python 3.12 en vez de 3.13.
+- **`ImportError: cannot import name '...' from '...'`**: significa
+  que el nombre de una función cambió en un archivo pero no se
+  actualizó en el archivo que la importa (o viceversa). Comparar el
+  nombre exacto de la función en ambos archivos y corregir el que
+  esté desactualizado.
+- **`MlflowException: Unable to find a logged model with artifact_path
+  model under run ...`** al correr `register_model`: es la versión de
+  MLflow. Confirmá que `requirements.txt` tenga `mlflow==2.16.2` (no
+  3.x) y que `train.py` use `artifact_path="model"` en el
+  `log_model()` — después hay que volver a entrenar (los runs viejos,
+  logueados con la versión incorrecta, no se pueden registrar).
+- **Variables de entorno de MLflow "se olvidan"**: no persisten entre
+  sesiones de terminal. Si cerraste y abriste VS Code, hay que
+  volver a exportarlas antes de entrenar o registrar
