@@ -11,6 +11,13 @@ numpy>=1.26,<2.1
  
 scikit-learn==1.5.2
 dvc==3.55.2
+ 
+# Fijamos pathspec: versiones nuevas de esta libreria sacaron un
+# atributo interno (_DIR_MARK) que dvc 3.55.2 todavia necesita. Sin
+# esto, "dvc pull" falla con ImportError apenas se lo llama, aunque
+# la instalacion en si haya terminado sin errores.
+pathspec==0.11.2
+ 
 pytest==9.1.1
 joblib==1.5.3
  
