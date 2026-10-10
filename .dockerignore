@@ -1,0 +1,36 @@
+# Nada de esto hace falta dentro de la imagen, y algunas cosas (como
+# .env) serían un riesgo de seguridad si terminaran empaquetadas.
+
+.env
+.env.*
+!.env.example
+
+__pycache__/
+*.pyc
+*.pyo
+
+.git/
+.gitignore
+
+.venv/
+venv/
+env/
+
+tests/
+pytest.ini
+requirements-test.txt
+requirements.txt
+
+# Artefactos de la Entrega 1 que no tienen nada que hacer en la imagen
+# de la API (la API no entrena, solo sirve el modelo ya registrado).
+data/
+mlruns/
+mlflow.db
+notebooks/
+*.ipynb
+
+.vscode/
+.idea/
+
+README.md
+SETUP_GIT_DVC.md

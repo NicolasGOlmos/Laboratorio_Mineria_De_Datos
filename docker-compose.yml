@@ -1,0 +1,29 @@
+# Para levantar el servicio: docker compose up --build
+#
+# Las credenciales NO estan en este archivo. Docker Compose lee
+# automaticamente un archivo ".env" (si existe, en el mismo directorio
+# que este docker-compose.yml) y reemplaza las variables ${...} de
+# abajo con lo que encuentre ahi. Ese ".env" nunca se commitea (esta en
+# .gitignore) - cada quien lo crea localmente a partir de .env.example.
+services:
+  api:
+    build: .
+    image: customer-churn-api:latest
+    ports:
+      # host:contenedor -> se puede cambiar el puerto del host sin
+      # tocar la app (ej. "8001:8000" si el 8000 ya esta ocupado).
+      - "${HOST_PORT:-8000}:8000"
+    environment:
+      MLFLOW_TRACKING_URI: ${MLFLOW_TRACKING_URI}
+      MLFLOW_TRACKING_USERNAME: ${MLFLOW_TRACKING_USERNAME}
+      MLFLOW_TRACKING_PASSWORD: ${MLFLOW_TRACKING_PASSWORD}
+      MODEL_NAME: ${MODEL_NAME:-customer-churn-classifier}
+      # Opcional: fijar una version puntual en vez de "la ultima".
+      MODEL_VERSION: ${MODEL_VERSION:-}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s

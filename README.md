@@ -23,6 +23,7 @@ En cambio si la empresa llama a un cliente por un falso positivo es mucho mas ba
 gasta en el costo de hacer llamada, ya que el cliente pensaba quedarse igualmente.
 
 
+
 ## Organizacion del repositorio.
 
 ```
@@ -65,7 +66,7 @@ Partimos de `data/raw/customer_churn_historical.csv`: 7.043 clientes,
 ### 1. Instalar dependencias
 
 ```bash
-git clone <URL_DEL_REPO>
+git clone https://github.com/NicolasGOlmos/Laboratorio_Mineria_De_Datos.git
 cd Analisis_customer_churn
 python -m venv .venv
 source .venv/bin/activate          # en Windows: .venv\Scripts\Activate.ps1
@@ -97,7 +98,7 @@ da exactamente el mismo resultado — esto está comprobado en
 
 **En PowerShell (Windows):**
 ```powershell
-$env:MLFLOW_TRACKING_URI="https://dagshub.com/<usuario>/<repo>.mlflow"
+$env:MLFLOW_TRACKING_URI="https://dagshub.com/nicolas.olmos/Laboratorio_Mineria_De_Datos.git.mlflow"
 $env:MLFLOW_TRACKING_USERNAME="<usuario_dagshub>"
 $env:MLFLOW_TRACKING_PASSWORD="<token_dagshub>"
 
@@ -106,7 +107,7 @@ python -m src.training.train
 
 **En Mac/Linux/Git Bash:**
 ```bash
-export MLFLOW_TRACKING_URI="https://dagshub.com/<usuario>/<repo>.mlflow"
+export MLFLOW_TRACKING_URI="https://dagshub.com/nicolas.olmos/Laboratorio_Mineria_De_Datos.git.mlflow"
 export MLFLOW_TRACKING_USERNAME="<usuario_dagshub>"
 export MLFLOW_TRACKING_PASSWORD="<token_dagshub>"
 
@@ -289,3 +290,224 @@ https://dagshub.com/<usuario>/<repo>.mlflow
 - **Variables de entorno de MLflow "se olvidan"**: no persisten entre
   sesiones de terminal. Si cerraste y abriste VS Code, hay que
   volver a exportarlas antes de entrenar o registrar
+
+  ---
+
+
+# Etapa 2: API de inferencia
+
+En la etapa 1 dejamos un modelo registrado en MLflow (`customer-churn-classifier`).
+En esta etapa lo convertimos en una API REST que recibe los datos de un
+cliente y responde la probabilidad, el nivel de riesgo y si es probable que se vaya (churn), 
+todo corriendo dentro de Docker.
+
+
+## Qué hay de nuevo en el repo
+
+```
+app/
+  main.py            -> la API: GET /health y POST /predict
+  schemas.py         -> contratos de entrada y salida (Pydantic)
+  model_loader.py    -> trae el modelo desde el Model Registry de MLflow
+  risk.py            -> traduce la probabilidad a LOW / MEDIUM / HIGH
+tests/
+  conftest.py        -> arma un modelo de prueba en un MLflow local
+  test_api.py        -> tests de /health, /predict y entradas invalidas
+  test_model_loader.py -> carga del modelo y comportamiento si no esta disponible
+  test_risk.py       -> limites de los niveles de riesgo
+Dockerfile
+docker-compose.yml
+.dockerignore
+.env.example         -> plantilla de variables de entorno (sin secretos)
+requirements-api.txt -> dependencias de produccion (lo que va en la imagen)
+requirements-test.txt-> lo anterior + herramientas para testear
+```
+
+## Cómo correrlo de cero
+
+Necesitás Python 3.12, Git y Docker Desktop.
+
+**1. Clonar e instalar**
+
+```bash
+git clone https://github.com/NicolasGOlmos/Laboratorio_Mineria_De_Datos.git
+cd <repo>
+python -m venv .venv
+# Windows (PowerShell): .venv\Scripts\Activate.ps1
+# Linux/Mac:            source .venv/bin/activate
+pip install -r requirements-test.txt
+```
+
+**2. Correr los tests**
+
+```bash
+pytest tests/ -v
+```
+
+Los tests de la API no necesitan internet ni credenciales: entrenan un modelo
+chiquito, lo registran en un MLflow local (sqlite, en una carpeta temporal) y la API
+lo carga de ahi, igual que haria con DagsHub.
+
+**3. Configurar las credenciales**
+
+```bash
+cp .env.example .env        # en PowerShell: copy .env.example .env
+```
+
+Abrí `.env` y completá tu usuario y token de DagsHub. Ese archivo está en el
+`.gitignore` y en el `.dockerignore`: nunca se sube al repo ni entra a la imagen.
+
+| Variable | Qué es |
+|---|---|
+| `MLFLOW_TRACKING_URI` | URL del MLflow de DagsHub (`https://dagshub.com/<usuario>/<repo>.mlflow`) |
+| `MLFLOW_TRACKING_USERNAME` | Tu usuario de DagsHub |
+| `MLFLOW_TRACKING_PASSWORD` | Tu token de DagsHub (no la contraseña) |
+| `MODEL_NAME` | Nombre del modelo registrado (`customer-churn-classifier`) |
+| `MODEL_VERSION` | Opcional. Si va vacío, se usa la última versión registrada |
+| `HOST_PORT` | Opcional. Puerto de tu máquina donde se publica la API (por defecto 8000) |
+
+**4. Construir la imagen y levantar el servicio**
+
+```bash
+docker build -t customer-churn-api:latest .
+docker compose up --build
+```
+
+Cuando todo salió bien, el log muestra:
+
+```
+Modelo cargado: customer-churn-classifier v1
+Application startup complete.
+```
+
+Para apagarlo: `Ctrl+C` y después `docker compose down`.
+
+**5. Probar la API**
+
+- Documentación interactiva (Swagger): http://localhost:8000/docs
+- Estado del servicio: http://localhost:8000/health
+
+```bash
+curl http://localhost:8000/health
+```
+
+```json
+{"status": "ok", "model_name": "customer-churn-classifier", "model_version": "1"}
+```
+
+Para predecir, guardá un cliente en `cliente.json`:
+
+```json
+{
+  "customerID": "7590-VHVEG",
+  "gender": "Female",
+  "SeniorCitizen": 0,
+  "Partner": "Yes",
+  "Dependents": "No",
+  "tenure": 1,
+  "PhoneService": "No",
+  "MultipleLines": "No phone service",
+  "InternetService": "DSL",
+  "OnlineSecurity": "No",
+  "OnlineBackup": "Yes",
+  "DeviceProtection": "No",
+  "TechSupport": "No",
+  "StreamingTV": "No",
+  "StreamingMovies": "No",
+  "Contract": "Month-to-month",
+  "PaperlessBilling": "Yes",
+  "PaymentMethod": "Electronic check",
+  "MonthlyCharges": 29.85,
+  "TotalCharges": 29.85
+}
+```
+
+y mandalo:
+
+```bash
+curl -X POST http://localhost:8000/predict -H "Content-Type: application/json" -d @cliente.json
+# Windows PowerShell: curl.exe -X POST http://localhost:8000/predict -H "Content-Type: application/json" -d "@cliente.json"
+```
+
+```json
+{
+  "prediction": "CHURN",
+  "probability": 0.6105,
+  "risk_level": "HIGH",
+  "model_version": "1",
+  "request_id": "c2aaa8bb-b9ec-45ee-ac94-b3fbf9a5b9ae"
+}
+```
+
+## El contrato de la API
+
+**`GET /health`**: dice si el servicio está operativo y qué versión del modelo tiene
+cargada. Responde `ok` si el modelo se cargó, o `degraded` si no.
+
+**`POST /predict`**: recibe las características de un cliente y devuelve:
+
+| Campo | Qué es |
+|---|---|
+| `prediction` | `CHURN` o `NO_CHURN` (corte en probabilidad 0.5) |
+| `probability` | Probabilidad de churn, entre 0 y 1 |
+| `risk_level` | `LOW` (< 0.30), `MEDIUM` (0.30 a 0.60) o `HIGH` (>= 0.60) |
+| `model_version` | Versión del modelo del Registry que respondió |
+| `request_id` | Identificador único de cada llamada, para trazar |
+
+Los datos de entrada se validan con Pydantic **antes** de llegar al modelo:
+los campos categóricos solo aceptan los valores que existen en el dataset
+(por ejemplo `Contract` solo acepta `Month-to-month`, `One year` o `Two year`),
+`tenure` y `MonthlyCharges` no pueden ser negativos, y faltar un campo obligatorio
+es error. Una entrada inválida devuelve **422** con el detalle de qué falló.
+`TotalCharges` y `customerID` son opcionales (`customerID` es solo para trazabilidad y
+no influye en la predicción).
+
+| Código | Cuándo |
+|---|---|
+| 200 | Predicción correcta |
+| 422 | Entrada inválida (campo faltante, valor fuera de lista, número negativo, etc.) |
+| 503 | El modelo no está disponible (por ejemplo, credenciales incorrectas al arrancar) |
+| 500 | Falló el pipeline al predecir (error inesperado) |
+
+## Decisiones de diseño
+
+- **El modelo sale del Model Registry, no de un archivo.** Así la API queda atada al
+  modelo y al run reales de la etapa 1 (misma trazabilidad), y cambiar de modelo es
+  registrar una versión nueva, sin tocar la imagen.
+- **Se carga una sola vez, al arrancar.** No en cada request: es más rápido y la versión
+  que responde queda fija mientras el servicio esté arriba.
+- **Si el modelo no carga, la API igual levanta.** `/health` pasa a `degraded` y
+  `/predict` responde 503. Preferimos eso a que el contenedor se caiga en bucle sin
+  explicar nada.
+- **`mlflow-skinny` en la imagen.** La API solo es *cliente* de MLflow (habla con
+  DagsHub por HTTPS), así que no hace falta el paquete completo con sus dependencias de
+  servidor. La imagen queda más liviana. Quedó fijado en la misma versión que se usó
+  para entrenar (2.16.2).
+- **Dos archivos de dependencias.** `requirements-api.txt` es lo que va a producción;
+  `requirements-test.txt` le suma pytest, httpx y lo necesario para simular el Registry
+  en local.
+- **Umbrales de riesgo.** 0.30 y 0.60 son una decisión nuestra, alineada con priorizar el
+  recall que justificamos en la etapa 1. Están en `app/risk.py` y tienen tests.
+- **Sin secretos en el repo ni en la imagen.** Todo entra por variables de entorno;
+  `docker-compose.yml` las lee del `.env` local.
+
+## Por si algo no anda
+
+- **`Docker Desktop - Virtual Machine Platform not enabled`**: en PowerShell como
+  administrador, `Enable-WindowsOptionalFeature -Online -FeatureName VirtualMachinePlatform`
+  y reiniciar. Si Docker pide virtualización, hay que activarla en la BIOS
+  (Intel VT-x / AMD SVM).
+- **`/health` responde `degraded` o `/predict` da 503**: el modelo no se pudo cargar.
+  Mirá el log (`docker compose logs api`): lo más común es un token mal copiado, una
+  `MLFLOW_TRACKING_URI` incorrecta o un `MODEL_NAME` que no existe en el Registry.
+- **`port is already allocated`**: el 8000 está ocupado (por ejemplo por un `uvicorn`
+  que quedó abierto). Cerralo, o cambiá `HOST_PORT` en el `.env`.
+- **Los tests fallan al importar mlflow con un error de SQLAlchemy**: instalaste una
+  SQLAlchemy 2.1. Usá `pip install -r requirements-test.txt`, que la deja en 2.0.x.
+- **Las variables del `.env` no se ven con `uvicorn` a mano**: uvicorn no lee el `.env`;
+  eso lo hace Docker Compose. Para probar sin Docker hay que setear las variables en la
+  terminal (`$env:MLFLOW_TRACKING_URI="..."` en PowerShell, `export ...` en bash).
+
+## Entrega
+
+La versión evaluada de esta etapa está marcada con el tag `entrega-2`.

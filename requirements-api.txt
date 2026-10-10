@@ -1,0 +1,21 @@
+# Dependencias para SERVIR el modelo (etapa 2). Separado de
+# requirements.txt (el de entrenamiento, etapa 1) porque la imagen
+# Docker de la API no necesita dvc, jupyter, ni las librerias de EDA
+# -no tiene sentido empaquetar todo eso en el contenedor de produccion.
+
+fastapi==0.115.0
+uvicorn[standard]==0.32.0
+pydantic==2.9.2
+
+# mlflow-skinny en vez de mlflow completo: trae el cliente (lo unico
+# que necesita la API para hablar con el Model Registry de DagsHub
+# via HTTPS) sin las dependencias pesadas de un SERVIDOR mlflow
+# (pyarrow, docker, graphene, gunicorn), que no hacen falta aca y que
+# en Python 3.13 ni siquiera instalan (pyarrow no tiene wheels para
+# esa version). La API nunca corre un servidor mlflow local: siempre
+# habla con DagsHub por HTTPS, asi que el cliente liviano alcanza.
+mlflow-skinny==2.16.2
+
+scikit-learn==1.5.2
+pandas>=2.2,<3
+numpy>=1.26,<2.1
