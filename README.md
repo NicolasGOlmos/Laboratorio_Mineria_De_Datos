@@ -336,6 +336,9 @@ python -m venv .venv
 # Windows (PowerShell): .venv\Scripts\Activate.ps1
 # Linux/Mac:            source .venv/bin/activate
 pip install -r requirements-test.txt
+pip install -r requirements.txt
+configurar las credenciales de DagsHub (ver sección de DVC de la etapa 1)
+dvc pull
 ```
 
 **2. Correr los tests**
@@ -507,6 +510,10 @@ no influye en la predicción).
 - **Las variables del `.env` no se ven con `uvicorn` a mano**: uvicorn no lee el `.env`;
   eso lo hace Docker Compose. Para probar sin Docker hay que setear las variables en la
   terminal (`$env:MLFLOW_TRACKING_URI="..."` en PowerShell, `export ...` en bash).
+
+## Evidencias
+
+Capturas del flujo completo en `docs/evidencias/`
 
 ## Entrega
 
