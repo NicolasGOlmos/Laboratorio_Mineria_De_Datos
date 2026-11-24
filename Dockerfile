@@ -25,8 +25,20 @@ COPY app ./app
 # que el proceso de adentro escucha en el 8000.
 EXPOSE 8000
 
+# Trazabilidad: el pipeline de CI pasa el commit y la version del dataset
+# como argumentos de build, y quedan visibles en GET /health. No son
+# secretos (un hash de commit y un hash de dataset).
+ARG GIT_COMMIT=unknown
+ARG DATASET_VERSION=unknown
+ENV GIT_COMMIT=${GIT_COMMIT} \
+    DATASET_VERSION=${DATASET_VERSION}
+
 # Nada de secretos acá: MLFLOW_TRACKING_URI, MLFLOW_TRACKING_USERNAME,
 # MLFLOW_TRACKING_PASSWORD, MODEL_NAME y MODEL_VERSION se inyectan en
 # tiempo de ejecucion (docker-compose.yml con un .env, o "docker run -e").
 # La imagen no los contiene hardcodeados en ningun lado.
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+#
+# --no-access-log: los logs de cada request los emite la propia API en
+# JSON (con request_id y latencia), asi que el access log de uvicorn
+# solo duplicaria cada linea en otro formato.
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--no-access-log"]

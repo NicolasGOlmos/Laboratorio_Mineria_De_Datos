@@ -138,3 +138,26 @@ def testeo_predict_con_body_vacio_devuelve_422(cliente_api):
     """Un body vacio tiene que fallar la validacion, no caerse con un 500."""
     respuesta = cliente_api.post("/predict", json={})
     assert respuesta.status_code == 422
+
+
+# --- Errores internos: no se filtran detalles al consumidor -----------------
+
+def testeo_error_interno_no_expone_el_texto_de_la_excepcion(cliente_api):
+    """Si el pipeline explota, el consumidor recibe un mensaje controlado (con request_id),
+    y NO el texto interno de la excepcion (rutas, nombres de columnas, versiones...)."""
+    from app.main import estado
+
+    class PipelineRoto:
+        def predict_proba(self, _):
+            raise RuntimeError("SECRETO-INTERNO /opt/ruta/interna columna_x")
+
+    estado["modelo"].pipeline = PipelineRoto()
+
+    respuesta = cliente_api.post(
+        "/predict", json=CLIENTE_VALIDO, headers={"X-Request-ID": "trace-500"}
+    )
+
+    assert respuesta.status_code == 500
+    assert "SECRETO-INTERNO" not in respuesta.text
+    assert "/opt/ruta/interna" not in respuesta.text
+    assert respuesta.json()["detail"]["request_id"] == "trace-500"

@@ -1,0 +1,142 @@
+name: CI/CD
+
+# Flujo: push/PR -> pytest (compuerta) -> docker build -> GHCR -> release
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-cd-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  DATASET_DVC_FILE: data/raw/customer_churn_historical.csv.dvc
+  DATASET_PATH: data/raw/customer_churn_historical.csv
+
+jobs:
+  # ---------------------------------------------------------------
+  # 1) Tests: si fallan, no se construye ni se publica nada.
+  # ---------------------------------------------------------------
+  test:
+    name: Tests (pytest)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Instalar dependencias
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-test.txt
+
+      # Los tests de la etapa 1 necesitan el dataset, que vive en DagsHub (DVC).
+      # Las credenciales salen de los secretos del repo, nunca del codigo.
+      - name: Descargar dataset con DVC
+        env:
+          DAGSHUB_USER: ${{ secrets.DAGSHUB_USER }}
+          DAGSHUB_TOKEN: ${{ secrets.DAGSHUB_TOKEN }}
+        run: |
+          if [ -z "$DAGSHUB_USER" ] || [ -z "$DAGSHUB_TOKEN" ]; then
+            echo "::error::Faltan los secretos DAGSHUB_USER y/o DAGSHUB_TOKEN (Settings > Secrets and variables > Actions)."
+            exit 1
+          fi
+          REMOTE=$(dvc remote list | head -n 1 | cut -f1)
+          dvc remote modify --local "$REMOTE" auth basic
+          dvc remote modify --local "$REMOTE" user "$DAGSHUB_USER"
+          dvc remote modify --local "$REMOTE" password "$DAGSHUB_TOKEN"
+          dvc pull "$DATASET_PATH"
+
+      - name: pytest
+        run: python -m pytest tests/ -q -W ignore
+
+  # ---------------------------------------------------------------
+  # 2) Imagen Docker: en PR solo construye (valida); en main y en tags
+  #    ademas publica en GHCR con tags explicitos.
+  # ---------------------------------------------------------------
+  docker:
+    name: Docker build y publicacion en GHCR
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Metadata de trazabilidad (commit y dataset)
+        id: meta_build
+        run: |
+          echo "git_commit=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+          echo "dataset_version=$(grep -m1 -oP 'md5:\s*\K\S+' "$DATASET_DVC_FILE")" >> "$GITHUB_OUTPUT"
+
+      - name: Tags de la imagen
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=sha,format=short
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v') }}
+
+      - name: Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login en GHCR
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build (y push si no es PR)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            GIT_COMMIT=${{ steps.meta_build.outputs.git_commit }}
+            DATASET_VERSION=${{ steps.meta_build.outputs.dataset_version }}
+          provenance: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ---------------------------------------------------------------
+  # 3) Release: solo cuando se empuja un tag vX.Y.Z
+  # ---------------------------------------------------------------
+  release:
+    name: GitHub Release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: docker
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Crear release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "$GITHUB_REF_NAME" \
+            --generate-notes \
+            --notes "Imagen: ghcr.io/${GITHUB_REPOSITORY,,}:${GITHUB_REF_NAME#v}"
