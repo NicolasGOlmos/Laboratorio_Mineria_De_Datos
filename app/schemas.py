@@ -120,3 +120,10 @@ class HealthResponse(BaseModel):
     status: Literal["ok", "degraded"]
     model_name: str
     model_version: str | None = None
+
+    # Trazabilidad: permiten relacionar lo que esta sirviendo la API con
+    # el codigo (commit), el entrenamiento (run de MLflow) y los datos
+    # (version del dataset) que le dieron origen.
+    run_id: str | None = None
+    git_commit: str | None = None
+    dataset_version: str | None = None

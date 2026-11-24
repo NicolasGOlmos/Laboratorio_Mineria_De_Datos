@@ -7,8 +7,15 @@
 # .gitignore) - cada quien lo crea localmente a partir de .env.example.
 services:
   api:
-    build: .
-    image: customer-churn-api:latest
+    # Desarrollo local: "docker compose up --build" construye la imagen aca.
+    # Servidor: con API_IMAGE=ghcr.io/<usuario>/<repo>:<version> en el .env,
+    # "docker compose pull && docker compose up -d" usa la imagen publicada
+    # en GHCR por el pipeline, sin construir nada.
+    build:
+      context: .
+      args:
+        GIT_COMMIT: ${GIT_COMMIT:-dev}
+    image: ${API_IMAGE:-customer-churn-api:latest}
     ports:
       # host:contenedor -> se puede cambiar el puerto del host sin
       # tocar la app (ej. "8001:8000" si el 8000 ya esta ocupado).
@@ -20,6 +27,7 @@ services:
       MODEL_NAME: ${MODEL_NAME:-customer-churn-classifier}
       # Opcional: fijar una version puntual en vez de "la ultima".
       MODEL_VERSION: ${MODEL_VERSION:-}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]

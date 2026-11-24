@@ -41,8 +41,13 @@ def testeo_cargar_modelo_inexistente_lanza_error_claro(modelo_registrado_local, 
         cargar_modelo()
 
 
-def testeo_api_sin_modelo_marca_degraded_y_predict_devuelve_503(modelo_registrado_local, monkeypatch):
-    """Si el modelo no carga, la API levanta igual pero avisa: /health=degraded y /predict=503."""
+def testeo_api_sin_modelo_health_y_predict_devuelven_503(modelo_registrado_local, monkeypatch):
+    """Si el modelo no carga, la API levanta igual pero avisa: /health y /predict dan 503.
+
+    Importante: /health tiene que devolver 503 (no 200 con status=degraded),
+    porque es lo que usa el healthcheck de Docker para marcar el contenedor
+    como no saludable.
+    """
     for clave, valor in modelo_registrado_local.items():
         monkeypatch.setenv(clave, valor)
     monkeypatch.setenv("MODEL_NAME", "modelo-que-no-existe")
@@ -54,7 +59,7 @@ def testeo_api_sin_modelo_marca_degraded_y_predict_devuelve_503(modelo_registrad
 
     with TestClient(app) as cliente:
         health = cliente.get("/health")
-        assert health.status_code == 200
+        assert health.status_code == 503
         assert health.json()["status"] == "degraded"
 
         predict = cliente.post("/predict", json=CLIENTE_VALIDO)

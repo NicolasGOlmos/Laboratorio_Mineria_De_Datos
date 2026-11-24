@@ -37,10 +37,12 @@ class ModeloNoDisponibleError(Exception):
 class ModeloCargado:
     """Envoltorio simple: guarda el pipeline ya cargado + metadata util para /health."""
 
-    def __init__(self, pipeline, model_name: str, model_version: str):
+    def __init__(self, pipeline, model_name: str, model_version: str, run_id: str | None = None):
         self.pipeline = pipeline
         self.model_name = model_name
         self.model_version = model_version
+        # Run de MLflow con el que se entreno esta version del modelo.
+        self.run_id = run_id
 
 
 def _resolver_version(client: MlflowClient, model_name: str) -> str:
@@ -85,4 +87,16 @@ def cargar_modelo() -> ModeloCargado:
             f"No se pudo cargar el modelo '{model_name}' desde MLflow: {exc}"
         ) from exc
 
-    return ModeloCargado(pipeline=pipeline, model_name=model_name, model_version=model_version)
+    # El run de origen es solo metadata de trazabilidad: si no se puede
+    # leer, no vale la pena tirar abajo un modelo que ya cargo bien.
+    try:
+        run_id = client.get_model_version(model_name, model_version).run_id
+    except Exception:
+        run_id = None
+
+    return ModeloCargado(
+        pipeline=pipeline,
+        model_name=model_name,
+        model_version=model_version,
+        run_id=run_id,
+    )
